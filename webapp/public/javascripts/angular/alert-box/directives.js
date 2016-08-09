@@ -1,4 +1,4 @@
-angular.module("terrama2.components.messagebox", [])
+angular.module("terrama2.components.messagebox", ['terrama2'])
   .run(function($templateCache) {
     // <terrama2-alert-box>
     $templateCache.put('message-box.html',

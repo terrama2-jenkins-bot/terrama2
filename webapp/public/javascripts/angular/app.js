@@ -303,4 +303,22 @@ terrama2Application.directive('terrama2Datetime', function($timeout) {
       });
     }
   };
-});
+})
+
+  .directive('terrama2Fluid', function($window) {
+    return {
+      restrict: "A",
+      link: function(scope, element, attrs) {
+        angular.element($window).bind('scroll', function() {
+          if (this.pageYOffset > 200) {
+            element.addClass("terrama2-fluid");
+            console.log("Make it as fluid");
+          } else {
+            element.removeClass("terrama2-fluid");
+          }
+          console.log("height ", this.pageYOffset);
+        });
+
+      }
+    };
+  });
