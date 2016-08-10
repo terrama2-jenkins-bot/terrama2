@@ -174,8 +174,8 @@
 }
 
 .terrama2-table table{
-  height:300px !important;              // <-- Select the height of the table
-  display: -moz-groupbox !important;    // Firefox Bad Effect
+  height:300px !important;
+  display: -moz-groupbox !important;
 }
 
 .terrama2-table-tbody tbody {
@@ -201,14 +201,14 @@
   position: absolute !important;
 }
 
-[ng\:cloak], [ng-cloak], [data-ng-cloak], [x-ng-cloak], .ng-cloak, .x-ng-cloak {
-  display: none;
+[ng-cloak] {
+  display: none !important;
 }
 
-/*[ng\:cloak].terrama2-splash {*/
-  /*display:block !important;*/
-/*}*/
-/*.terrama2-splash {*/
-  /*background-color: blue;*/
-  /*display: none;*/
-/*}*/
+.terrama2-fluid {
+  position: fixed !important;
+  z-index: 1050 !important;
+  width: 100% !important;
+  top: 0 !important;
+  left: 0 !important;
+}
