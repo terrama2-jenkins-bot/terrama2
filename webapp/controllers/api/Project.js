@@ -29,7 +29,11 @@ module.exports = function(app) {
           Utils.handleRequestError(response, err, 400);
         });
       } else {
-        response.json(DataManager.listProjects());
+        DataManager.listProjects({}).then(function(projectList) {
+          response.json(projectList.map(function(p) { return p; }));
+        }).catch(function(err) {
+          Utils.handleRequestError(response, err, 400);
+        });
       }
     },
 

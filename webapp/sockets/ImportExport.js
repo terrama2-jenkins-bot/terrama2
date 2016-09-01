@@ -92,7 +92,7 @@ var ImportExport = function(io) {
             output.DataProviders = [];
             dataProviders.forEach(function(dataProvider) {
               // check if there is a data provider with same name
-              promises.push(DataManager.getDataProvider({name: dataProvider.name}).then(function(dProvider) {
+              promises.push(DataManager.getDataProvider({name: dataProvider.name}, options).then(function(dProvider) {
                 // found. // set ID
                 output.DataProviders.push(_updateID(dataProvider, dProvider));
               }).catch(function(err) {
@@ -128,7 +128,7 @@ var ImportExport = function(io) {
 
               dataSeries.forEach(function(dSeries) {
                 // find or create DataSeries
-                promises.push(DataManager.getDataSeries({name: dSeries.name}).then(function(dSeriesResult) {
+                promises.push(DataManager.getDataSeries({name: dSeries.name}, options).then(function(dSeriesResult) {
                   // call helper to add IDs in output.DataSeries
                   _processDataSeriesAndDataSets(dSeries, dSeriesResult);
                 }).catch(function(err) {
@@ -141,7 +141,7 @@ var ImportExport = function(io) {
                   });
 
                   // return Promise
-                  return DataManager.addDataSeries(dSeries, null, {transaction: t}).then(function(dSeriesResult) {
+                  return DataManager.addDataSeries(dSeries, null, options).then(function(dSeriesResult) {
                     // call helper to add IDs in output.DataSeries
                     _processDataSeriesAndDataSets(dSeries, dSeriesResult);
                   });
@@ -159,11 +159,12 @@ var ImportExport = function(io) {
                   var dsOutput = Utils.find(output.DataSeries, {$id: collector.output_data_series});
                   collector.data_series_output = dsOutput.id;
                   promises.push(
-                    DataManager.getCollector({data_series_output: dsOutput.id}).catch(function(err) {
+                    DataManager.getCollector({data_series_output: dsOutput.id}, options).catch(function(err) {
                       // on error, try add
-                      return DataManager.addSchedule(collector.schedule).then(function(scheduleResult) {
+                      delete collector.schedule.id;
+                      return DataManager.addSchedule(collector.schedule, options).then(function(scheduleResult) {
                         collector.schedule_id = scheduleResult.id;
-                        return DataManager.addCollector(collector, collector.filter);
+                        return DataManager.addCollector(collector, collector.filter, options);
                       });
                     })
                   );
@@ -293,14 +294,15 @@ var ImportExport = function(io) {
           output.DataSeries = [];
           output.Collectors = [];
           output.Analysis = [];
-          var providers = DataManager.listDataProviders({project_id: projectId});
-          providers.forEach(function(provider) {
-            output.DataProviders.push(addID(provider));
-          });
+          DataManager.listDataProviders({project_id: projectId}).then(function(providers) {
+            providers.forEach(function(provider) {
+              output.DataProviders.push(addID(provider));
+            });
 
-          DataManager.listDataSeries({dataProvider: { project_id: projectId }}).then(function(dataSeriesList) {
-            dataSeriesList.forEach(function(dataSeries) {
-              output.DataSeries.push(addID(dataSeries));
+            DataManager.listDataSeries({dataProvider: { project_id: projectId }}).then(function(dataSeriesList) {
+              dataSeriesList.forEach(function(dataSeries) {
+                output.DataSeries.push(addID(dataSeries));
+              });
             });
           });
         }).catch(_emitError));

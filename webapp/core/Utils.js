@@ -192,56 +192,57 @@ var Utils = {
         reject(err);
       };
 
-      var dataProvidersResult = DataManager.listDataProviders();
-      var providers = [];
-      dataProvidersResult.forEach(function(dataProvider) {
-        providers.push(dataProvider.toObject());
-      }); // end foreach dataProvidersResult
+      DataManager.listDataProviders().then(function(dataProvidersResult) {
+        var providers = [];
+        dataProvidersResult.forEach(function(dataProvider) {
+          providers.push(dataProvider.toObject());
+        }); // end foreach dataProvidersResult
 
-      // getting dataseries
-      DataManager.listDataSeries().then(function(dataSeriesResult) {
-        var series = [];
-        dataSeriesResult.forEach(function(dataSeries) {
-          series.push(dataSeries.toObject());
-        }); // end foreach dataSeriesResult
+        // getting dataseries
+        DataManager.listDataSeries().then(function(dataSeriesResult) {
+          var series = [];
+          dataSeriesResult.forEach(function(dataSeries) {
+            series.push(dataSeries.toObject());
+          }); // end foreach dataSeriesResult
 
-        // getting collectors
-        DataManager.listCollectors({}, projectId).then(function(collectorsResult) {
-          var collectors = [];
-          collectorsResult.forEach(function(collector) {
-            // setting project id. temp. TODO: better way to implement it
+          // getting collectors
+          DataManager.listCollectors({}, projectId).then(function(collectorsResult) {
+            var collectors = [];
+            collectorsResult.forEach(function(collector) {
+              // setting project id. temp. TODO: better way to implement it
 
-            dataProvidersResult.some(function(dprovider) {
-              return dataSeriesResult.some(function(dseries) {
-                if (dprovider.id == dseries.data_provider_id && collector.data_series_input == dseries.id) {
-                  //getting project id
-                  collector.project_id = dprovider.project_id;
-                  return true;
-                }
+              dataProvidersResult.some(function(dprovider) {
+                return dataSeriesResult.some(function(dseries) {
+                  if (dprovider.id == dseries.data_provider_id && collector.data_series_input == dseries.id) {
+                    //getting project id
+                    collector.project_id = dprovider.project_id;
+                    return true;
+                  }
+                });
               });
-            });
 
-            collectors.push(collector.toObject());
-          }); // end foreach collectorsResult
+              collectors.push(collector.toObject());
+            }); // end foreach collectorsResult
 
-          // getting analyses
-          DataManager.listAnalyses().then(function(analysesResult) {
-            var analyses = [];
+            // getting analyses
+            DataManager.listAnalyses().then(function(analysesResult) {
+              var analyses = [];
 
-            analysesResult.forEach(function(analysis) {
-              analyses.push(analysis.toObject());
-            }); // end foreach analysesResult
+              analysesResult.forEach(function(analysis) {
+                analyses.push(analysis.toObject());
+              }); // end foreach analysesResult
 
-            resolve({
-              "Analysis": analyses,
-              "DataSeries": series,
-              "DataProviders": providers,
-              "Collectors": collectors
-            });
+              resolve({
+                "Analysis": analyses,
+                "DataSeries": series,
+                "DataProviders": providers,
+                "Collectors": collectors
+              });
 
-          }).catch(_handleError); // end listAnalyses
-        }).catch(_handleError); // end listCollectors
-      }).catch(_handleError); // end listDataSeries
+            }).catch(_handleError); // end listAnalyses
+          }).catch(_handleError); // end listCollectors
+        }).catch(_handleError); // end listDataSeries
+      });
     });
   },
 

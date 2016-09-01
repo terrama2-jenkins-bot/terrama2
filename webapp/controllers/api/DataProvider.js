@@ -82,10 +82,12 @@ module.exports = function(app) {
         });
       } else {
         var output = [];
-        DataManager.listDataProviders({project_id: app.locals.activeProject.id}).forEach(function(element) {
-          output.push(element.rawObject());
+        DataManager.listDataProviders({project_id: app.locals.activeProject.id}).then(function(dataProviderList) {
+          dataProviderList.forEach(function(element) {
+            output.push(element.rawObject());
+          });
+          return response.json(output);
         });
-        response.json(output);
       }
     },
 
