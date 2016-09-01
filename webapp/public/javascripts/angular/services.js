@@ -96,7 +96,7 @@ angular.module("terrama2.services", ['terrama2'])
 
   factory("Socket", function($rootScope) {
     var socket = io.connect(window.location.origin, {
-      reconnect: false // it avoids to socket io reconnect automatically. 
+      // reconnect: false // it avoids to socket io reconnect automatically. 
     });
 
     return {

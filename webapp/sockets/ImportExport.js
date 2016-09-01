@@ -25,6 +25,7 @@ var ImportExport = function(io) {
   iosocket.on('connection', function(client) {
     /**
      * TerraMA2 Import Listener. It prepares a json and load them to Database if does not exist.
+     * 
      * @param {Object} json - A javascript object containing what intend to import.
      * Note it must be group by generic name pointing to array of elements. i.e {"Projects": []}
      * @example
@@ -57,180 +58,186 @@ var ImportExport = function(io) {
         return Object.assign({$id: old.$id}, o);
       };
 
-      // if there any project to import
-      if (json.Projects) {
-        var projects = json.Projects || [];
-        output.Projects = [];
-        projects.forEach(function(project) {
-          // Try to get project by unique name
-          promises.push(DataManager.getProject({name: project.name}).then(function(proj) {
-            output.Projects.push(Object.assign({ $id: project.$id }, proj));
-          }).catch(function(err) { // if there is not, just add 
-            return DataManager.addProject(project).then(function(proj) {
+      DataManager.orm.transaction(function(t) {
+        var options = {transaction: t};
+        // if there any project to import
+        if (json.Projects) {
+          var projects = json.Projects || [];
+          output.Projects = [];
+          projects.forEach(function(project) {
+            // Try to get project by unique name
+            promises.push(DataManager.getProject({name: project.name}).then(function(proj) {
               output.Projects.push(Object.assign({ $id: project.$id }, proj));
-            });
-          }));
-        });
-      }
-
-      /**
-       * Error helper for promises exception handler. It emits a client response with error
-       * @param {Error} err - An exception occurred
-       */
-      var _emitError = function(err) {
-        // TODO: rollback
-        client.emit("importResponse", {
-          status: 400,
-          err: err.toString()
-        });
-      };
-
-      Promise.all(promises).then(function() {
-        promises = [];
-
-        if (json.DataProviders) {
-          var dataProviders = json.DataProviders || [];
-          output.DataProviders = [];
-          dataProviders.forEach(function(dataProvider) {
-            // check if there is a data provider with same name
-            promises.push(DataManager.getDataProvider({name: dataProvider.name}).then(function(dProvider) {
-              // found. // set ID
-              output.DataProviders.push(_updateID(dataProvider, dProvider));
-            }).catch(function(err) {
-              // not found. #insert
-              console.log("DOES NOT EXISTS");
-              dataProvider.data_provider_type_id = dataProvider.data_provider_type.id;
-              dataProvider.project_id = Utils.find(output.Projects, {$id: dataProvider.project_id}).id;
-              return DataManager.addDataProvider(dataProvider).then(function(dProvider) {
-                output.DataProviders.push(_updateID(dataProvider, dProvider));
+            }).catch(function(err) { // if there is not, just add 
+              return DataManager.addProject(project, options).then(function(proj) {
+                output.Projects.push(Object.assign({ $id: project.$id }, proj));
               });
             }));
           });
         }
 
-        Promise.all(promises).then(function() {
+        /**
+         * Error helper for promises exception handler. It emits a client response with error
+         * @param {Error} err - An exception occurred
+         */
+        var _emitError = function(err) {
+          return Promise.reject(err);
+        };
+
+        return Promise.all(promises).then(function() {
           promises = [];
-          if (json.DataSeries) {
-            var dataSeries = json.DataSeries ||  [];
-            output.DataSeries = [];
 
-            /** 
-             * Helper for matching id with $id
-             * @param {DataSeries} dSeries - A data series from json
-             * @param {DataSeries} dSeriesResult - A data series retrieved from database
-             */
-            var _processDataSeriesAndDataSets = function(dSeries, dSeriesResult) {
-              var oldDataSets = dSeries.dataSets;
-              dSeriesResult.dataSets.forEach(function(dataSet, index) {
-                dataSet.$id = oldDataSets[index].$id;
-              });
-              dSeriesResult.$id = dSeries.$id;
-              output.DataSeries.push(dSeriesResult);
-            };
-
-            dataSeries.forEach(function(dSeries) {
-              // find or create DataSeries
-              promises.push(DataManager.getDataSeries({name: dSeries.name}).then(function(dSeriesResult) {
-                // call helper to add IDs in output.DataSeries
-                _processDataSeriesAndDataSets(dSeries, dSeriesResult);
+          if (json.DataProviders) {
+            var dataProviders = json.DataProviders || [];
+            output.DataProviders = [];
+            dataProviders.forEach(function(dataProvider) {
+              // check if there is a data provider with same name
+              promises.push(DataManager.getDataProvider({name: dataProvider.name}).then(function(dProvider) {
+                // found. // set ID
+                output.DataProviders.push(_updateID(dataProvider, dProvider));
               }).catch(function(err) {
-                // preparing to insert in DataBase
-                dSeries.data_series_semantic_id = dSeries.data_series_semantics.id;
-                dSeries.data_provider_id = Utils.find(output.DataProviders, {$id: dSeries.data_provider_id}).id;
-                dSeries.dataSets.forEach(function(dSet) {
-                  dSet.$id = dSet.id;
-                  delete dSet.id;
-                });
-
-                // return Promise
-                return DataManager.addDataSeries(dSeries).then(function(dSeriesResult) {
-                  // call helper to add IDs in output.DataSeries
-                  _processDataSeriesAndDataSets(dSeries, dSeriesResult);
+                // not found. #insert
+                dataProvider.data_provider_type_id = dataProvider.data_provider_type.id;
+                dataProvider.project_id = Utils.find(output.Projects, {$id: dataProvider.project_id}).id;
+                return DataManager.addDataProvider(dataProvider, options).then(function(dProvider) {
+                  output.DataProviders.push(_updateID(dataProvider, dProvider));
                 });
               }));
             });
           }
-          Promise.all(promises).then(function() {
+
+          return Promise.all(promises).then(function() {
             promises = [];
-            if (json.Collectors) {
-              var collectors = json.Collectors || [];
+            if (json.DataSeries) {
+              var dataSeries = json.DataSeries ||  [];
+              output.DataSeries = [];
 
-              collectors.forEach(function(collector) {
-                collector.data_series_input = Utils.find(output.DataSeries, {$id: collector.input_data_series}).id;
+              /** 
+               * Helper for matching id with $id
+               * @param {DataSeries} dSeries - A data series from json
+               * @param {DataSeries} dSeriesResult - A data series retrieved from database
+               */
+              var _processDataSeriesAndDataSets = function(dSeries, dSeriesResult) {
+                var oldDataSets = dSeries.dataSets;
+                dSeriesResult.dataSets.forEach(function(dataSet, index) {
+                  dataSet.$id = oldDataSets[index].$id;
+                });
+                dSeriesResult.$id = dSeries.$id;
+                output.DataSeries.push(dSeriesResult);
+              };
 
-                var dsOutput = Utils.find(output.DataSeries, {$id: collector.output_data_series});
-                collector.data_series_output = dsOutput.id;
-                promises.push(
-                  DataManager.getCollector({data_series_output: dsOutput.id}).catch(function(err) {
-                    // on error, try add
-                    return DataManager.addSchedule(collector.schedule).then(function(scheduleResult) {
-                      collector.schedule_id = scheduleResult.id;
-                      return DataManager.addCollector(collector, collector.filter);
-                    });
-                  })
-                );
+              dataSeries.forEach(function(dSeries) {
+                // find or create DataSeries
+                promises.push(DataManager.getDataSeries({name: dSeries.name}).then(function(dSeriesResult) {
+                  // call helper to add IDs in output.DataSeries
+                  _processDataSeriesAndDataSets(dSeries, dSeriesResult);
+                }).catch(function(err) {
+                  // preparing to insert in DataBase
+                  dSeries.data_series_semantic_id = dSeries.data_series_semantics.id;
+                  dSeries.data_provider_id = Utils.find(output.DataProviders, {$id: dSeries.data_provider_id}).id;
+                  dSeries.dataSets.forEach(function(dSet) {
+                    dSet.$id = dSet.id;
+                    delete dSet.id;
+                  });
+
+                  // return Promise
+                  return DataManager.addDataSeries(dSeries, null, {transaction: t}).then(function(dSeriesResult) {
+                    // call helper to add IDs in output.DataSeries
+                    _processDataSeriesAndDataSets(dSeries, dSeriesResult);
+                  });
+                }));
               });
             }
-
-            Promise.all(promises).then(function() {
+            return Promise.all(promises).then(function() {
               promises = [];
+              if (json.Collectors) {
+                var collectors = json.Collectors || [];
 
-              if (json.Analysis) {
-                var analysisList = json.Analysis || [];
-                analysisList.forEach(function(analysis) {
-                  DataManager.getAnalysis({name: analysis.name}).then(function() {
-                    output.Analysis.push(analysis);
-                  }).catch(function(err) {
-                    return DataManager.addSchedule(analysis.schedule).then(function(schedule) {
-                      analysis.schedule_id = schedule.id;
+                collectors.forEach(function(collector) {
+                  collector.data_series_input = Utils.find(output.DataSeries, {$id: collector.input_data_series}).id;
 
-                      analysis.analysisDataSeries = analysis.analysis_dataseries_list;
-                      for(var i = 0; i < analysis.analysisDataSeries.length; ++i) {
-                        var ds = analysis.analysisDataSeries[i];
-                        for(var k = 0; k < output.DataSeries.length; ++k) {
-                          var anDs = output.DataSeries[k];
-                          if (ds.data_series_id === anDs.$id) {
-                            ds.type_id = ds.type;
-                            ds.data_series_id = anDs.id;
-                            break;
-                          }
-                        }
-                      }
-
-                      analysis.type_id = analysis.type.id;
-
-                      analysis.instance_id = analysis.service_instance_id;
-                      analysis.project_id = Utils.find(output.Projects, {$id: analysis.project_id}).id;
-                      analysis.script_language_id = analysis.script_language;
-                      analysis.grid = analysis.output_grid;
-                      var dataSeriesOutput = Utils.find(output.DataSeries, {
-                        dataSets: {
-                          $id: analysis.output_dataseries_id
-                        }
+                  var dsOutput = Utils.find(output.DataSeries, {$id: collector.output_data_series});
+                  collector.data_series_output = dsOutput.id;
+                  promises.push(
+                    DataManager.getCollector({data_series_output: dsOutput.id}).catch(function(err) {
+                      // on error, try add
+                      return DataManager.addSchedule(collector.schedule).then(function(scheduleResult) {
+                        collector.schedule_id = scheduleResult.id;
+                        return DataManager.addCollector(collector, collector.filter);
                       });
-
-                      if (dataSeriesOutput.data_series_semantics.data_series_type_name === Enums.DataSeriesType.DCP) {
-                        // TODO:
-                        console.log("TODO: Analysis DCP export");
-                      } else {
-                        analysis.dataset_output = dataSeriesOutput.dataSets[0].id;
-                      }
-                      return DataManager.addAnalysis(analysis);
-                    });
-                  });
+                    })
+                  );
                 });
               }
 
-              Promise.all(promises).then(function() {
-                client.emit("importResponse", {
-                  status: 200,
-                  data: output
-                });
+              return Promise.all(promises).then(function() {
+                promises = [];
+
+                if (json.Analysis) {
+                  var analysisList = json.Analysis || [];
+                  analysisList.forEach(function(analysis) {
+                    DataManager.getAnalysis({name: analysis.name}).then(function() {
+                      output.Analysis.push(analysis);
+                    }).catch(function(err) {
+                      return DataManager.addSchedule(analysis.schedule).then(function(schedule) {
+                        analysis.schedule_id = schedule.id;
+
+                        analysis.analysisDataSeries = analysis.analysis_dataseries_list;
+                        for(var i = 0; i < analysis.analysisDataSeries.length; ++i) {
+                          var ds = analysis.analysisDataSeries[i];
+                          for(var k = 0; k < output.DataSeries.length; ++k) {
+                            var anDs = output.DataSeries[k];
+                            if (ds.data_series_id === anDs.$id) {
+                              ds.type_id = ds.type;
+                              ds.data_series_id = anDs.id;
+                              break;
+                            }
+                          }
+                        }
+
+                        analysis.type_id = analysis.type.id;
+
+                        analysis.instance_id = analysis.service_instance_id;
+                        analysis.project_id = Utils.find(output.Projects, {$id: analysis.project_id}).id;
+                        analysis.script_language_id = analysis.script_language;
+                        analysis.grid = analysis.output_grid;
+                        var dataSeriesOutput = Utils.find(output.DataSeries, {
+                          dataSets: {
+                            $id: analysis.output_dataseries_id
+                          }
+                        });
+
+                        if (dataSeriesOutput.data_series_semantics.data_series_type_name === Enums.DataSeriesType.DCP) {
+                          // TODO:
+                          console.log("TODO: Analysis DCP export");
+                        } else {
+                          analysis.dataset_output = dataSeriesOutput.dataSets[0].id;
+                        }
+                        return DataManager.addAnalysis(analysis);
+                      });
+                    });
+                  });
+                }
+
+                return Promise.all(promises).catch(_emitError);
               }).catch(_emitError);
             }).catch(_emitError);
           }).catch(_emitError);
         }).catch(_emitError);
-      }).catch(_emitError);
+      }).then(function(res) {
+        console.log("Commited");
+        client.emit("importResponse", {
+          status: 200,
+          data: output
+        });
+      }).catch(function(err) {
+        console.log("rollback ");
+        console.log(err);
+        client.emit("importResponse", {
+          status: 400,
+          err: err.toString()
+        });
+      });
     });
 
     /**

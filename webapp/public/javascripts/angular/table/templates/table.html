@@ -107,7 +107,11 @@
           </td>
 
           <td ng-if="extra.project" class="pull-cell-left">
-            <a ng-href="{{ extra.project.activate(element) }}" class="btn btn-primary btn-sm">
+            <a ng-href="{{ extra.project.activate(element) }}" 
+               class="btn btn-primary btn-sm"
+               data-toggle="tooltip"
+               data-placement="top"
+               title="{{ i18n.__('Activate this project') }}">
               <i class="fa fa-magic"></i> {{ i18n.__("Activate") }}
             </button>
           </td>
@@ -177,7 +181,11 @@
           </td>
 
           <td ng-if="isFunction(remove)" class="pull-cell-left">
-            <button class="btn btn-sm btn-danger" ng-click="confirmRemoval(element)">
+            <button class="btn btn-sm btn-danger" 
+                    ng-click="confirmRemoval(element)" 
+                    data-toggle="tooltip"
+                    data-placement="top"
+                    title="{{ i18n.__('Remove') + ' ' + context }}">
               <span class="glyphicon glyphicon-remove"></span>
               <span class="hidden-xs">{{ i18n.__('Remove') }}</span>
             </button>
