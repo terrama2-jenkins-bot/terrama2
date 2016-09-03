@@ -294,85 +294,69 @@ var DataManager = {
           }));
         });
 
-        // it will match each of semantics with providers
-        var insertSemanticsProvider = function() {
-          self.listSemanticsProvidersType().then(function(result) {
-            if (result.length !== 0) {
-              callback();
-              return;
-            }
+        Promise.all(inserts).catch(function(err) {
+          console.log(err);
+        }).finally(function() {
+          // it will match each of semantics with providers
+          self.listSemanticsProvidersType()
+            .then(function(result) {
+              if (result.length !== 0) {
+                callback();
+                return;
+              }
 
-            self.listDataProviderType().then(function(dataProvidersType) {
-              self.listDataSeriesSemantics().then(function(semanticsList) {
-                var semanticsProvidersArray = [];
-                semanticsList.forEach(function(semantics) {
-                  var dependencies = semanticsWithProviders[semantics.code] || [];
+              return self.listDataProviderType();
+            }).then(function(dataProvidersType) {
+              return self.listDataSeriesSemantics()
+            }).then(function(semanticsList) {
+              var semanticsProvidersArray = [];
+              semanticsList.forEach(function(semantics) {
+                var dependencies = semanticsWithProviders[semantics.code] || [];
 
-                  dependencies.forEach(function(dependency) {
-                    dataProvidersType.some(function(providerType) {
-                      if (dependency === providerType.name) {
-                        semanticsProvidersArray.push({
-                          data_provider_type_id: providerType.id,
-                          data_series_semantics_id: semantics.id
-                        });
-                        return true;
-                      }
-                    });
-                  });
-                });
-
-                // adding metadata to semantics
-                var semanticsMetadataArray = [];
-                semanticsList.forEach(function(semantics) {
-                  semanticsObject.some(function(element) {
-                    if (semantics.code === element.code) {
-                      if (element.metadata) {
-                        for(var key in element.metadata) {
-                          if (element.metadata.hasOwnProperty(key)) {
-                            semanticsMetadataArray.push({
-                              key: key,
-                              value: element.metadata[key],
-                              data_series_semantics_id: semantics.id
-                            });
-                          }
-                        }
-                      }
+                dependencies.forEach(function(dependency) {
+                  dataProvidersType.some(function(providerType) {
+                    if (dependency === providerType.name) {
+                      semanticsProvidersArray.push({data_provider_type_id: providerType.id, data_series_semantics_id: semantics.id});
                       return true;
                     }
-                  });
-                });
-
-                var _makeSemanticsMetadata = function() {
-                  models.db.SemanticsMetadata.bulkCreate(semanticsMetadataArray).then(function(res) {
-                    callback();
-                  }).catch(function(err) {
-                    callback();
-                  });
-                };
-
-                models.db.SemanticsProvidersType.bulkCreate(semanticsProvidersArray).then(function(result) {
-                  _makeSemanticsMetadata();
-                }).catch(function(err) {
-                  _makeSemanticsMetadata();
-                });
-              }).catch(function(err) {
-                console.log(err);
-                callback();
+                  }) // end some;
+                }) // end foreach dependencies;
               });
+
+              // adding metadata to semantics
+              var semanticsMetadataArray = [];
+              semanticsList.forEach(function(semantics) {
+                semanticsObject.some(function(element) {
+                  if (semantics.code === element.code) {
+                    if (element.metadata) {
+                      for(var key in element.metadata) {
+                        if (element.metadata.hasOwnProperty(key)) {
+                          semanticsMetadataArray.push({
+                            key: key,
+                            value: element.metadata[key],
+                            data_series_semantics_id: semantics.id
+                          });
+                        }
+                      }
+                    }
+                    return true;
+                  }
+                });
+              });
+
+              var _makeSemanticsMetadata = function() {
+
+              };
+
+              return models.db.SemanticsProvidersType.bulkCreate(semanticsProvidersArray)
+                .finally(function(){
+                  return models.db.SemanticsMetadata.bulkCreate(semanticsMetadataArray);
+                });
             }).catch(function(err) {
               console.log(err);
-              callback();
+            }).finally(function() {
+              return callback();
             });
-          }).catch(function() {
-            callback();
-          });
-        };
-
-        Promise.all(inserts).then(function() {
-          insertSemanticsProvider();
-        }).catch(function(err) {
-          console.log(err);
-          insertSemanticsProvider();
         });
       };
 
@@ -1988,61 +1972,65 @@ var DataManager = {
       models.db.Collector.create(collectorObject, options).then(function(collectorResult) {
         var collector = new DataModel.Collector(collectorResult.get());
 
-        return self.getSchedule({id: collectorResult.schedule_id}, options).then(function(schedule) {
-          return self.getDataSeries({id: collectorResult.data_series_input}).then(function(dataSeriesInput) {
-            return self.getDataSeries({id: collectorResult.data_series_output}).then(function(dataSeriesOutput) {
-              var inputOutputArray = [];
+        return Promise.all([
+          self.getSchedule({id: collectorResult.schedule_id}, options),
+          self.getDataSeries({id: collectorResult.data_series_input}),
+          self.getDataSeries({id: collectorResult.data_series_output})
+        ]).then(function(resultSet) {
+          var schedule = resultSet[0];
+          var dataSeriesInput = result[1];
+          var dataSeriesOutput = result[2];
 
-              for(var i = 0; i < dataSeriesInput.dataSets.length; ++i) {
-                var inputDataSet = dataSeriesInput.dataSets[i];
-                var outputDataSet;
-                if (dataSeriesOutput.dataSets.length === 1) {
-                  outputDataSet = dataSeriesOutput.dataSets[0];
-                } else {
-                  outputDataSet = dataSeriesOutput.dataSets[i];
-                }
+          var inputOutputArray = [];
 
-                inputOutputArray.push({
-                  collector_id: collectorResult.id,
-                  input_dataset: inputDataSet.id,
-                  output_dataset: outputDataSet.id
-                });
-              }
+          for(var i = 0; i < dataSeriesInput.dataSets.length; ++i) {
+            var inputDataSet = dataSeriesInput.dataSets[i];
+            var outputDataSet;
+            if (dataSeriesOutput.dataSets.length === 1) {
+              outputDataSet = dataSeriesOutput.dataSets[0];
+            } else {
+              outputDataSet = dataSeriesOutput.dataSets[i];
+            }
 
-              return models.db.CollectorInputOutput.bulkCreate(inputOutputArray, options).then(function(bulkInputOutputResult) {
-                var input_output_map = [];
-                bulkInputOutputResult.forEach(function(bulkResult) {
-                  input_output_map.push({
-                    input: bulkResult.input_dataset,
-                    output: bulkResult.output_dataset
-                  });
-                });
-                collector.input_output_map = input_output_map;
-                collector.schedule = schedule;
+            inputOutputArray.push({
+              collector_id: collectorResult.id,
+              input_dataset: inputDataSet.id,
+              output_dataset: outputDataSet.id
+            });
+          }
 
-                if (_.isEmpty(filterObject)) {
-                  return resolve(collector);
-                }
-
-                if (_.isEmpty(filterObject.date) && _.isEmpty(filterObject.region||{})) {
-                  return resolve(collector);
-                } else {
-                  filterObject.collector_id = collectorResult.id;
-
-                  return self.addFilter(filterObject, options)
-                    .then(function(filterResult) {
-                      collector.filter = filterResult;
-                      return resolve(collector);
-                    }).catch(function(err) {
-                      console.log(err);
-                      return reject(new exceptions.CollectorError("Could not save collector filter: " + err.toString()));
-                    });
-                }
-              }).catch(function(err) {
-                console.log(err);
-                return reject(new exceptions.CollectorError("Could not save collector input/output " + err.toString()));
+          return models.db.CollectorInputOutput.bulkCreate(inputOutputArray, options).then(function(bulkInputOutputResult) {
+            var input_output_map = [];
+            bulkInputOutputResult.forEach(function(bulkResult) {
+              input_output_map.push({
+                input: bulkResult.input_dataset,
+                output: bulkResult.output_dataset
               });
             });
+            collector.input_output_map = input_output_map;
+            collector.schedule = schedule;
+
+            if (_.isEmpty(filterObject)) {
+              return resolve(collector);
+            }
+
+            if (_.isEmpty(filterObject.date) && _.isEmpty(filterObject.region || {})) {
+              return resolve(collector);
+            } else {
+              filterObject.collector_id = collectorResult.id;
+
+              return self.addFilter(filterObject, options)
+                .then(function(filterResult) {
+                  collector.filter = filterResult;
+                  return resolve(collector);
+                }).catch(function(err) {
+                  console.log(err);
+                  return reject(new exceptions.CollectorError("Could not save collector filter: " + err.toString()));
+                });
+            }
+          }).catch(function(err) {
+            console.log(err);
+            return reject(new exceptions.CollectorError("Could not save collector input/output " + err.toString()));
           });
         });
       }).catch(function(err) {
@@ -2517,104 +2505,109 @@ var DataManager = {
     var self = this;
     return new Promise(function(resolve, reject) {
       models.db.Analysis.create(analysisObject, options).then(function(analysisResult) {
-        return self.getDataSet({id: analysisResult.dataset_output}).then(function(dataSet) {
-          return self.getDataSeries({id: dataSet.data_series_id}).then(function(dataSeries) {
-            return self.getSchedule({id: analysisResult.schedule_id}, options).then(function(scheduleResult) {
-              analysisResult.getScriptLanguage().then(function(scriptLanguageResult) {
-                // creating a variable to make visible in closure
-                var analysisDataSeriesArray = Utils.clone(analysisObject.analysisDataSeries);
-                // making analysis metadata
-                var analysisMetadata = [];
-                for(var key in analysisObject.metadata) {
-                  if (analysisObject.metadata.hasOwnProperty(key)) {
-                    analysisMetadata.push({
-                      analysis_id: analysisResult.id,
+        return Promise.all([
+          self.getDataSet({id: analysisResult.dataset_output}),
+          self.getDataSeries({id: dataSet.data_series_id}),
+          self.getSchedule({id: analysisResult.schedule_id}, options)
+        ]).then(function(resultSet) {
+          var dataSet = resultSet[0];
+          var dataSeries = resultSet[1];
+          var scheduleResult = resultSet[2];
+
+          analysisResult.getScriptLanguage().then(function(scriptLanguageResult) {
+            // creating a variable to make visible in closure
+            var analysisDataSeriesArray = Utils.clone(analysisObject.analysisDataSeries);
+            // making analysis metadata
+            var analysisMetadata = [];
+            for(var key in analysisObject.metadata) {
+              if (analysisObject.metadata.hasOwnProperty(key)) {
+                analysisMetadata.push({
+                  analysis_id: analysisResult.id,
+                  key: key,
+                  value: analysisObject.metadata[key]
+                });
+              }
+            }
+
+            return models.db.AnalysisMetadata.bulkCreate(analysisMetadata, options).then(function(bulkAnalysisMetadata) {
+              var analysisMetadataOutput = {};
+              bulkAnalysisMetadata.forEach(function(bulkMetadata) {
+                analysisMetadataOutput[bulkMetadata.key] = bulkMetadata.value;
+              });
+
+              var promises = [];
+
+              analysisDataSeriesArray.forEach(function(analysisDS) {
+                analysisDS.analysis_id = analysisResult.id;
+                // ignore id
+                delete analysisDS.id;
+
+                var metadata = [];
+                for(var key in analysisDS.metadata) {
+                  if (analysisDS.metadata.hasOwnProperty(key)) {
+                    metadata.push({
                       key: key,
-                      value: analysisObject.metadata[key]
+                      value: analysisDS.metadata[key]
                     });
                   }
                 }
+                delete analysisDS.metadata;
+                analysisDS.AnalysisDataSeriesMetadata = metadata;
 
-                models.db.AnalysisMetadata.bulkCreate(analysisMetadata, options).then(function(bulkAnalysisMetadata) {
-                  var analysisMetadataOutput = {};
-                  bulkAnalysisMetadata.forEach(function(bulkMetadata) {
-                    analysisMetadataOutput[bulkMetadata.key] = bulkMetadata.value;
+                promises.push(self.addAnalysisDataSeries(analysisDS, options));
+              });
+
+              var analysisInstance = new DataModel.Analysis(analysisResult);
+              analysisInstance.setScriptLanguage(scriptLanguageResult);
+              analysisInstance.setSchedule(scheduleResult);
+              analysisInstance.setMetadata(analysisMetadataOutput);
+              analysisInstance.setDataSeries(dataSeries);
+
+              analysisResult.getAnalysisType().then(function(analysisTypeResult) {
+                analysisInstance.type = analysisTypeResult.get();
+
+                var _savePromises = function() {
+                  return Promise.all(promises).then(function(results) {
+                    results.forEach(function(result) {
+                      var analysisDataSeries = result;
+
+                      analysisInstance.addAnalysisDataSeries(analysisDataSeries);
+                    });
+
+                    return resolve(analysisInstance);
+                  }).catch(function(err) {
+                    console.log(err);
+                    // rollback analysis data series
+                    Utils.rollbackPromises([
+                      self.removeAnalysis({id: analysisResult.id}, options)
+                    ], new exceptions.AnalysisError("Could not save analysis data series " + err.toString()), reject);
                   });
+                };
 
-                  var promises = [];
+                // check for add analysis grid
+                if (analysisTypeResult.id === Enums.AnalysisType.GRID) {
+                  var analysisOutputGrid = analysisObject.grid;
+                  analysisOutputGrid.analysis_id = analysisResult.id;
 
-                  analysisDataSeriesArray.forEach(function(analysisDS) {
-                    analysisDS.analysis_id = analysisResult.id;
-                    // ignore id
-                    delete analysisDS.id;
-
-                    var metadata = [];
-                    for(var key in analysisDS.metadata) {
-                      if (analysisDS.metadata.hasOwnProperty(key)) {
-                        metadata.push({
-                          key: key,
-                          value: analysisDS.metadata[key]
-                        });
-                      }
-                    }
-                    delete analysisDS.metadata;
-                    analysisDS.AnalysisDataSeriesMetadata = metadata;
-
-                    promises.push(self.addAnalysisDataSeries(analysisDS, options));
-                  });
-
-                  var analysisInstance = new DataModel.Analysis(analysisResult);
-                  analysisInstance.setScriptLanguage(scriptLanguageResult);
-                  analysisInstance.setSchedule(scheduleResult);
-                  analysisInstance.setMetadata(analysisMetadataOutput);
-                  analysisInstance.setDataSeries(dataSeries);
-
-                  analysisResult.getAnalysisType().then(function(analysisTypeResult) {
-                    analysisInstance.type = analysisTypeResult.get();
-
-                    var _savePromises = function() {
-                      return Promise.all(promises).then(function(results) {
-                        results.forEach(function(result) {
-                          var analysisDataSeries = result;
-
-                          analysisInstance.addAnalysisDataSeries(analysisDataSeries);
-                        });
-
-                        return resolve(analysisInstance);
-                      }).catch(function(err) {
-                        console.log(err);
-                        // rollback analysis data series
-                        Utils.rollbackPromises([
-                          self.removeAnalysis({id: analysisResult.id}, options)
-                        ], new exceptions.AnalysisError("Could not save analysis data series " + err.toString()), reject);
-                      });
-                    };
-
-                    // check for add analysis grid
-                    if (analysisTypeResult.id === Enums.AnalysisType.GRID) {
-                      var analysisOutputGrid = analysisObject.grid;
-                      analysisOutputGrid.analysis_id = analysisResult.id;
-
-                      return self.addAnalysisOutputGrid(analysisOutputGrid, options).then(function(output_grid) {
-                        analysisInstance.outputGrid = output_grid;
-                        return _savePromises();
-                      }).catch(function(err) {
-                        Utils.rollbackPromises([
-                          self.removeAnalysis({id: analysisResult.id}, options)
-                        ], err, reject);
-                      });
-                    } else { return _savePromises(); } // end if
-                  }); // end get analysis tyoe
-                }).catch(function(err) {
-                  // rollback analysis metadata
-                  Utils.rollbackPromises([
-                    self.removeAnalysis({id: analysisResult.id}, options)
-                  ], new exceptions.AnalysisError("Could not save analysis metadata " + err.toString()), reject);
-                });
-              }); // end get script language
+                  return self.addAnalysisOutputGrid(analysisOutputGrid, options)
+                    .then(function(output_grid) {
+                      analysisInstance.outputGrid = output_grid;
+                      return _savePromises();
+                    }).catch(function(err) {
+                      Utils.rollbackPromises([
+                        self.removeAnalysis({id: analysisResult.id}, options)
+                      ], err, reject);
+                    });
+                } else { return _savePromises(); } // end if
+              }); // end get analysis tyoe
+            }).catch(function(err) {
+              // rollback analysis metadata
+              Utils.rollbackPromises([
+                self.removeAnalysis({id: analysisResult.id}, options)
+              ], new exceptions.AnalysisError("Could not save analysis metadata " + err.toString()), reject);
             });
-          });
-        });
+          }); // end get script language
+        })
       }).catch(function(err) {
         // rollback data series
         console.log(err);
