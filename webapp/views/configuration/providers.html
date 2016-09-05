@@ -9,7 +9,8 @@
 {% block ngApp %} ng-app="terrama2.providers" {% endblock %}
 
 {% block javascripts %}
-
+<!-- Socket.io -->
+<script type="text/javascript" src="/socket.io/socket.io.js"></script>
 <script src="/externals/angular/angular.min.js"></script>
 <script src="/externals/angular/i18n-angular.min.js"></script>
 
@@ -17,9 +18,14 @@
 <script src="/javascripts/angular/services.js"></script>
 <script src="/javascripts/angular/table/table.js"></script>
 <script src="/javascripts/angular/alert-box/directives.js"></script>
+<script src="/javascripts/angular/importExport/services.js"></script>
 <script type="text/javascript">
-  angular.module("terrama2.providers", ['terrama2', 'terrama2.services', 'terrama2.components.messagebox', 'terrama2.table'])
-    .controller("DataProviderController", ['$scope', '$http', 'DataProviderFactory', 'i18n', function($scope, $http, DataProviderFactory, i18n) {
+  angular.module("terrama2.providers", [
+    'terrama2', 'terrama2.services', 'terrama2.components.messagebox', 'terrama2.table', 'terrama2.importExport.services'])
+    .controller("DataProviderController", ['$scope', '$http', 'DataProviderFactory', 'i18n', 'Socket', 'Importer', 
+    function($scope, $http, DataProviderFactory, i18n, Socket, Importer) {
+      var self = this;
+      var socket = Socket;
       $scope.i18n = i18n;
       $scope.model = [];
       $scope.linkToAdd = "/configuration/providers/new";
@@ -35,11 +41,19 @@
       };
       $scope.iconProperties = {};
 
+      self.importer = Importer;
+
+      $scope.alertLevel = "alert-success";
+      $scope.alertBox = {
+        title: "Data Provider",
+        message: "{[ message ]}",
+        display: {% if message %}true{% else %} false{% endif %}
+      };
+
       $scope.loading = true;
-      $scope.errorFound = false;
       $scope.extra = {
         removeOperationCallback: function(err, data) {
-          $scope.display = true;
+          $scope.alertBox.display = true;
           if (err) {
             $scope.alertLevel = "alert-danger";
             $scope.alertBox.message = err.message;
@@ -48,16 +62,39 @@
 
           $scope.alertLevel = "alert-success";
           $scope.alertBox.message = data.name + " removed";
-        }
+        },
+
+        importer: self.importer,
+        alertBox: $scope.alertBox
       };
       $scope.method = "{[ method ]}";
-      $scope.alertLevel = "alert-success";
-      $scope.alertBox = {
-        title: "Data Provider",
-        message: "{[ message ]}"
-      };
-      $scope.resetState = function() { $scope.display = false; };
-      $scope.display = {% if message %}true{% else %} false{% endif %};
+      $scope.resetState = function() { $scope.alertBox.display = false; };
+
+      socket.on("exportResponse", function(result) {
+        $scope.extra.isExporting = false;
+        $scope.alertBox.display = result.err ? true : false;
+        if (result.err) {
+          $scope.alertLevel = "alert-danger";
+          $scope.alertBox.message = result.err;
+          console.log("Err ", result.err);
+          return;
+        }
+
+        SaveAs(result.data, result.data.Projects[0].name + ".terrama2");
+      });
+
+      socket.on("importResponse", function(result) {
+        $scope.loading = false;
+        $scope.alertBox.display = true;
+        $scope.extra.isImporting = false;
+        if (result.err) {
+          $scope.alertLevel = "alert-danger";
+          console.log("Err ", result.err);
+          $scope.alertBox.message = result.err;
+          return;
+        }
+        $scope.alertLevel = "alert-success";
+      });
 
       DataProviderFactory.get().success(function(dataProviders) {
         $scope.model = dataProviders;
@@ -73,15 +110,23 @@
 {% endblock %}
 
 {% block content %}
-<div ng-controller="DataProviderController">
+<div ng-controller="DataProviderController as ctl">
   <terrama2-box title="'{[ __('Data Providers') ]}'">
     <div class="row">
       <div class="col-md-12">
         <div class="col-md-12">
-          <terrama2-alert-box alert-level="alertLevel" title="alertBox.title" message="alertBox.message" close="resetState()" display-handler="display"></terrama2-alert-box>
+          <terrama2-alert-box alert-level="alertLevel" title="alertBox.title" message="alertBox.message" close="resetState()" display-handler="alertBox.display"></terrama2-alert-box>
         </div>
 
-        <terrama2-table fields="fields" model="model" link="link" icon-properties="iconProperties" link-to-add="linkToAdd" icon="iconFn" context="'data provider'" remove="remove(object);" extra="extra"></terrama2-table>
+        <terrama2-table fields="fields" 
+                        model="model" 
+                        link="link" 
+                        icon-properties="iconProperties" 
+                        link-to-add="linkToAdd" 
+                        icon="iconFn" 
+                        context="'data provider'" 
+                        remove="remove(object);" 
+                        extra="extra"></terrama2-table>
       </div>
     </div>
 
