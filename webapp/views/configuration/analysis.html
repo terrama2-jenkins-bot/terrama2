@@ -101,6 +101,11 @@
 <script type="text/javascript" src="/javascripts/angular/geo/app.js"></script>
 <script type="text/javascript" src="/javascripts/angular/geo/directives.js"></script>
 
+<!-- TerraMA2 Services -->
+<script type="text/javascript" src="/javascripts/angular/data-provider/services.js"></script>
+<script type="text/javascript" src="/javascripts/angular/storager/services.js"></script>
+<script type="text/javascript" src="/javascripts/angular/analysis/services.js"></script>
+
 <script type="text/javascript" src="/javascripts/angular/analysis/registration.js"></script>
 
 {% endblock %}
@@ -148,7 +153,7 @@
           <div class="col-md-8">
             <div class="form-group" terrama2-show-errors>
               <label>{[ __("Name") ]}:</label>
-              <input class="form-control" name="name" ng-model="analysis.name" placeholder="{[ __('Analysis Name') ]}" type="text" required>
+              <input class="form-control" name="name" ng-model="Ctrl.service.analysis.name" placeholder="{[ __('Analysis Name') ]}" type="text" required>
 
               <span class="help-block" ng-show="forms.generalDataForm.name.$dirty && forms.generalDataForm.name.$invalid" ng-class="{'has-error': generalDataForm.name.$invalid}">{[ __('Analysis name is required') ]}</span>
             </div>
@@ -158,7 +163,7 @@
           <div class="col-md-4">
             <div class="form-group has-feedback" terrama2-show-errors>
               <label>{[ __("Type") ]}:</label>
-              <select class="form-control" name="type" ng-model="analysis.type_id" ng-disabled="isUpdating" required>
+              <select class="form-control" name="type" ng-model="Ctrl.service.analysis.type_id" ng-disabled="isUpdating" required>
                 <option value="{[ Enums.AnalysisType.DCP ]}">DCP</option>
                 <option value="{[ Enums.AnalysisType.GRID ]}">Grid</option>
                 <option value="{[ Enums.AnalysisType.MONITORED ]}">Monitored Object</option>
@@ -174,7 +179,7 @@
           <div class="col-md-12">
             <div class="form-group">
               <label>{[ __("Description") ]}:</label>
-              <textarea class="form-control" name="description" ng-model="analysis.description" rows="3" placeholder="{[ __('Analysis Description') ]}"></textarea>
+              <textarea class="form-control" name="description" ng-model="Ctrl.service.analysis.description" rows="3" placeholder="{[ __('Analysis Description') ]}"></textarea>
             </div>
             <!-- /.form-group -->
           </div>
@@ -182,9 +187,9 @@
           <div class="col-md-8">
             <div class="form-group has-feedback" terrama2-show-errors>
               <label>{[ __("Instance") ]}:</label>
-              <select class="form-control" name="instance" ng-model="analysis.instance_id" required>
-                <option ng-repeat="instance in instances" value="{{ instance.id }}">{{ instance.name }}</option>
-                <option ng-if="instances.length == 0" value="">{[ __('No analysis instance found') ]}</option>
+              <select class="form-control" name="instance" ng-model="Ctrl.service.analysis.instance_id" required>
+                <option ng-repeat="instance in Ctrl.service.instances" value="{{ instance.id }}">{{ instance.name }}</option>
+                <option ng-if="Ctrl.service.instances.length == 0" value="">{[ __('No analysis instance found') ]}</option>
               </select>
 
               <span class="help-block" ng-show="forms.generalDataForm.instance.$dirty && forms.generalDataForm.instance.$error.required">
@@ -199,7 +204,7 @@
               <div class="form-group">
                 <div class="checkbox">
                   <label style="font-weight: 700; margin-top:19px;">
-                    <input name="active" ng-model="analysis.active" ng-init="initActive(configuration.analysis.active)" type="checkbox"> {[ __("Active") ]}
+                    <input name="active" ng-model="Ctrl.service.analysis.active" ng-init="initActive(configuration.analysis.active)" type="checkbox"> {[ __("Active") ]}
                   </label>
                 </div>
               </div>
@@ -224,9 +229,9 @@
                 <select id="storageFormat" class="form-control"
                         name="format"
                         ng-disabled="isUpdating"
-                        ng-change="onStoragerFormatChange()"
-                        ng-model="storager.format"
-                        ng-options="format.name for format in storagerFormats" required>
+                        ng-change="Ctrl.service.storagerService.onStoragerFormatChange()"
+                        ng-model="Ctrl.service.storager.format"
+                        ng-options="format.name for format in Ctrl.service.storagerService.storagerFormats" required>
               </select>
 
               <span class="help-block" ng-show="forms.storagerDataForm.format.$dirty && forms.storagerDataForm.format.$error.required">
@@ -241,8 +246,8 @@
               <select class="form-control"
                       name="storager_data_provider_id"
                       ng-disabled="isUpdating"
-                      ng-model="analysis.data_provider_id"
-                      ng-options="provider.id as provider.name for provider in dataProviders"
+                      ng-model="Ctrl.service.analysis.data_provider_id"
+                      ng-options="provider.id as provider.name for provider in Ctrl.service.dataProviderService.dataProviders"
                       ng-required="storager.format.name" required>
                 <option></option>
               </select>
@@ -256,7 +261,11 @@
         <div class="col-md-12 terrama2-nopadding-box">
           <!-- schema form -->
           <div class="col-md-12" ng-show="showStoragerForm">
-            <form name="forms.storagerForm" sf-schema="schemaStorager" sf-form="formStorager" sf-model="modelStorager" sf-options="options"></form>
+            <form name="forms.storagerForm" 
+                  sf-schema="Ctrl.service.storagerService.schemaStorager" 
+                  sf-form="Ctrl.service.storagerService.formStorager" 
+                  sf-model="Ctrl.service.storagerService.modelStorager" 
+                  sf-options="options"></form>
           </div>
         </div>
 
@@ -376,7 +385,7 @@
               <div class="col-md-6">
                 <div class="form-group has-feedback" terrama2-show-errors>
                   <label>{[ __("Interpolation Method") ]}:</label>
-                  <select class="form-control" name="interpolation_method" ng-disabled="isUpdating"
+                  <select class="form-control" name="interpolation_method"
                           ng-model="analysis.grid.interpolation_method"
                           ng-required="analysis.type_id == 2"
                           ng-options="obj.value as obj.name for (k, obj) in interpolationMethods">
@@ -415,7 +424,7 @@
               <div class="col-md-6">
                 <div class="form-group has-feedback" terrama2-show-errors>
                   <label>{[ __("Area of Interest") ]}:</label>
-                  <select class="form-control" name="area_of_interest" ng-disabled="isUpdating"
+                  <select class="form-control" name="area_of_interest"
                           ng-model="analysis.grid.area_of_interest_type"
                           ng-required="analysis.type_id == 2"
                           ng-options="interestArea.value as interestArea.name for interestArea in interestAreaTypes">
@@ -434,7 +443,6 @@
                   <label>{[ __("DataSeries") ]}:</label>
                   <select class="form-control"
                           name="area_of_interest_data_series_id"
-                          ng-disabled="isUpdating"
                           ng-model="analysis.grid.area_of_interest_data_series_id"
                           ng-options="targetDS.id as targetDS.name for targetDS in selectedDataSeriesList"
                           ng-required="analysis.grid.area_of_interest_type === interestAreaTypes.SAME_FROM_DATA_SERIES.value">
@@ -458,7 +466,7 @@
               <div class="col-md-6">
                 <div class="form-group has-feedback" terrama2-show-errors>
                   <label>{[ __("Resolution") ]}:</label>
-                  <select class="form-control" name="resolution_type" ng-disabled="isUpdating"
+                  <select class="form-control" name="resolution_type"
                           ng-model="analysis.grid.resolution_type"
                           ng-required="analysis.type_id == 2"
                           ng-options="resolutionType.value as resolutionType.name for resolutionType in resolutionTypes">
@@ -518,7 +526,6 @@
                   <label>{[ __("DataSeries") ]}:</label>
                   <select class="form-control"
                           name="resolution_data_series_id"
-                          ng-disabled="isUpdating"
                           ng-model="analysis.grid.resolution_data_series_id"
                           ng-options="targetDS.id as targetDS.name for targetDS in selectedDataSeriesList"
                           ng-required="analysis.grid.resolution_type == resolutionTypes.SAME_FROM_DATA_SERIES.value">

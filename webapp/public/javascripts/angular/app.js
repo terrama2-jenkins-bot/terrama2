@@ -35,25 +35,6 @@ terrama2Application.config(["$provide", function($provide) {
   ]);
 }]);
 
-// setting caches
-terrama2Application.run(function($templateCache) {
-  // TerraMA2 Box
-  $templateCache.put('box.html',
-  '<div class="col-md-12">' +
-    '<div class="box box-default {{ boxType }}">' +
-      '<div class="box-header with-border">' +
-        '<h3 class="box-title">{{ titleHeader }}</h3>' +
-        '<div class="box-tools pull-right">' +
-          '<button type="button" class="btn btn-box-tool terrama2-circle-button" style="margin-right: 15px;" data-toggle="tooltip" data-placement="bottom" title="{{ helper }}"><i class="fa fa-question"></i></button>' +
-          '<button type="button" class="btn btn-box-tool" data-widget="collapse"><i ng-if="!collapsed" class="fa fa-minus"></i></button> ' +
-        '</div>' +
-      '</div>' +
-      '<div class="box-body" id="targetTransclude">' +
-      '</div>' +
-    '</div>' +
-  '</div>');
-});
-
 /**
  * It tries to parse a value to number/int
  * 
@@ -203,6 +184,33 @@ terrama2Application.factory('$HttpSync', ['$http', '$cacheFactory',
     };
   }
 ]);
+
+/**
+ * It retrieves TerraMA² enums
+ * 
+ * @property {Object} enums - A list of available enums 
+ * @example
+ * TODO
+ */
+terrama2Application.service("EnumService", function($http, $log) {
+  // var self = this;
+  // this.enums = {};
+  // var loaded = false;
+
+  // /**
+  //  * It loads Enums to memory
+  //  */
+  // this.load = function() {
+    // return $http.get("/api/Enums", {cache: true});
+  // }
+
+  // this.setEnums = function(enums) {
+  //   self.enums = enums;
+  // }
+  return function() {
+    return $http.get("/api/Enums", {cache: true});
+  }
+});
 
 terrama2Application.directive('terrama2CompareTo', function() {
   return {
@@ -459,4 +467,23 @@ terrama2Application.directive("terrama2Content", function() {
       scope.divClass = attrs.class || "row";
     }
   }
+});
+
+// setting caches
+terrama2Application.run(function($templateCache) {
+  // TerraMA2 Box
+  $templateCache.put('box.html',
+  '<div class="col-md-12">' +
+    '<div class="box box-default {{ boxType }}">' +
+      '<div class="box-header with-border">' +
+        '<h3 class="box-title">{{ titleHeader }}</h3>' +
+        '<div class="box-tools pull-right">' +
+          '<button type="button" class="btn btn-box-tool terrama2-circle-button" style="margin-right: 15px;" data-toggle="tooltip" data-placement="bottom" title="{{ helper }}"><i class="fa fa-question"></i></button>' +
+          '<button type="button" class="btn btn-box-tool" data-widget="collapse"><i ng-if="!collapsed" class="fa fa-minus"></i></button> ' +
+        '</div>' +
+      '</div>' +
+      '<div class="box-body" id="targetTransclude">' +
+      '</div>' +
+    '</div>' +
+  '</div>');
 });

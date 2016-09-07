@@ -3,6 +3,7 @@
 angular.module('terrama2.analysis.registration', [
     'terrama2',
     'terrama2.services',
+    'terrama2.analysis.services',
     'terrama2.components.messagebox',
     'terrama2.datetimepicker',
     'terrama2.ace',
@@ -23,8 +24,47 @@ angular.module('terrama2.analysis.registration', [
       'DataProviderFactory',
       'TryCaster',
       'Socket',
-  function($scope, i18n, ServiceInstanceFactory, DataSeriesFactory, DataSeriesSemanticsFactory, AnalysisFactory, DataProviderFactory, TryCaster, Socket) {
+      'AnalysisService',
+      'EnumService',
+      '$log',
+  function($scope, i18n, ServiceInstanceFactory, DataSeriesFactory, DataSeriesSemanticsFactory, AnalysisFactory, DataProviderFactory, TryCaster, Socket, AnalysisService, EnumService, $log) {
     var socket = Socket;
+
+    var vm = this;
+
+    vm.service = AnalysisService;
+
+    // loading dependencies
+    EnumService().success(function(enums) {
+      // setting enums
+      vm.service.setEnums(enums);
+
+      ServiceInstanceFactory.get({type: 'ANALYSIS'}).success(function(services) {
+        $scope.instances = services;
+
+        // setting service instances
+        vm.service.setInstances(services);
+
+        DataSeriesSemanticsFactory.list({metadata: true}).success(function(dataSeriesSemantics) {
+          vm.service.setDataSeriesSemantics(dataSeriesSemantics);
+
+          DataProviderFactory.get().success(function(dataProviders) {
+            vm.service.dataProviderService.setDataProviderList(dataProviders);
+
+            vm.service.prepareWatchers();
+
+            // initialize terrama2 analysis module
+            vm.service.initialize(configuration, enums);
+          }).error(function(err) {
+            $log.warn("Could not retrieve TerraMA2 data providers due " + (err || "unknown").toString());
+          })
+        }).error(function(err) {
+          $log.warn("Could not retrieve TerraMA2 data series semantics due " + (err || "unknown").toString());
+        });
+      }).error(errorHelper);
+    }).catch(function(err) {
+      $log.warn("Could not retrieve TerraMA2 enums");
+    });
 
     // injecting i18n module
     $scope.i18n = i18n;
@@ -156,65 +196,68 @@ angular.module('terrama2.analysis.registration', [
     // watchers
     // cleaning analysis metadata when analysis type has been changed.
     // fill storager formats
-    $scope.$watch("analysis.type_id", function(value) {
-      $scope.analysis.metadata = {};
-      var semanticsType;
-      var intTypeId = parseInt(value);
+    // $scope.$watch(function() { return service.getTypeId(); }, function(value) {
+      // call apply watch analysis type id handler
+      // vm.service.watchTypeId(value);
 
-      if ($scope.analysis.grid) {
-        delete $scope.analysis.grid;
-      }
+      // vm.service.analysis.metadata = {};
+      // var semanticsType;
+      // var intTypeId = parseInt(value);
 
-      $scope.dataSeriesBoxName = i18n.__("Additional Data");
-      switch(intTypeId) {
-        case globals.enums.AnalysisType.DCP:
-          semanticsType = globals.enums.DataSeriesType.DCP;
-          $scope.semanticsSelected = "Dcp";
-          break;
-        case globals.enums.AnalysisType.GRID:
-          semanticsType = globals.enums.DataSeriesType.GRID;
-          $scope.semanticsSelected = "Grid";
-          $scope.dataSeriesBoxName = i18n.__("Grid Data Series");
-          break;
-        case globals.enums.AnalysisType.MONITORED:
-          semanticsType = globals.enums.DataSeriesType.ANALYSIS_MONITORED_OBJECT;
-          $scope.semanticsSelected = i18n.__("Object Monitored");
-          break;
-        default:
-          console.log("invalid analysis type");
-          return;
-      }
+      // if (vm.service.analysis.grid) {
+      //   delete vm.service.analysis.grid;
+      // }
 
-      // re-fill data series
-      _processBuffers();
+      // $scope.dataSeriesBoxName = i18n.__("Additional Data");
+      // switch(intTypeId) {
+      //   case globals.enums.AnalysisType.DCP:
+      //     semanticsType = globals.enums.DataSeriesType.DCP;
+      //     $scope.semanticsSelected = "Dcp";
+      //     break;
+      //   case globals.enums.AnalysisType.GRID:
+      //     semanticsType = globals.enums.DataSeriesType.GRID;
+      //     $scope.semanticsSelected = "Grid";
+      //     $scope.dataSeriesBoxName = i18n.__("Grid Data Series");
+      //     break;
+      //   case globals.enums.AnalysisType.MONITORED:
+      //     semanticsType = globals.enums.DataSeriesType.ANALYSIS_MONITORED_OBJECT;
+      //     $scope.semanticsSelected = i18n.__("Object Monitored");
+      //     break;
+      //   default:
+      //     console.log("invalid analysis type");
+      //     return;
+      // }
 
-      $scope.onTargetDataSeriesChange = function() {
-        if ($scope.targetDataSeries && $scope.targetDataSeries.name) {
-          $scope.metadata[$scope.targetDataSeries.name] = {
-            alias: $scope.targetDataSeries.name
-          };
-        }
-      };
+      // // re-fill data series
+      // _processBuffers();
 
-      // filtering formats
-      $scope.storagerFormats = [];
-      $scope.dataSeriesSemantics.forEach(function(dSemantics) {
-        if(dSemantics.data_series_type_name === semanticsType) {
-          $scope.storagerFormats.push(Object.assign({}, dSemantics));
-        }
-      });
+      // $scope.onTargetDataSeriesChange = function() {
+      //   if ($scope.targetDataSeries && $scope.targetDataSeries.name) {
+      //     $scope.metadata[$scope.targetDataSeries.name] = {
+      //       alias: $scope.targetDataSeries.name
+      //     };
+      //   }
+      // };
 
-      // filtering dataseries
-      $scope.filteredDataSeries = [];
-      $scope.dataSeriesList.forEach(function(dataSeries) {
-        var semantics = dataSeries.data_series_semantics;
-        if (semantics.data_series_type_name === globals.enums.DataSeriesType.STATIC_DATA) {
-          $scope.filteredDataSeries.push(dataSeries);
-        }
-      });
+      // // filtering formats
+      // $scope.storagerFormats = [];
+      // $scope.dataSeriesSemantics.forEach(function(dSemantics) {
+      //   if(dSemantics.data_series_type_name === semanticsType) {
+      //     $scope.storagerFormats.push(Object.assign({}, dSemantics));
+      //   }
+      // });
 
-      if ($scope.isUpdating) { $scope.$emit("analysisTypeChanged"); }
-    });
+      // // filtering dataseries
+      // $scope.filteredDataSeries = [];
+      // $scope.dataSeriesList.forEach(function(dataSeries) {
+      //   var semantics = dataSeries.data_series_semantics;
+      //   if (semantics.data_series_type_name === globals.enums.DataSeriesType.STATIC_DATA) {
+      //     $scope.filteredDataSeries.push(dataSeries);
+      //   }
+      // });
+
+      // if ($scope.isUpdating) { $scope.$emit("analysisTypeChanged"); }
+    // });
 
     // targetDataSeries change. When
 
@@ -393,9 +436,9 @@ angular.module('terrama2.analysis.registration', [
     };
 
     // getting instances
-    ServiceInstanceFactory.get({type: 'ANALYSIS'}).success(function(services) {
-      $scope.instances = services;
-    }).error(errorHelper);
+    // ServiceInstanceFactory.get({type: 'ANALYSIS'}).success(function(services) {
+    //   $scope.instances = services;
+    // }).error(errorHelper);
 
     // getting DataSeries
     DataSeriesFactory.get({schema: "all"}).success(function(dataSeriesObjects) {
